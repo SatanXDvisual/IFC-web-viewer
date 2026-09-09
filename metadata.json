@@ -1,0 +1,6 @@
+{
+  "name": "Web-IFC BIM Viewer & IFC Code Playground",
+  "description": "Full in-browser BIM Web-IFC 3D Viewer with interactive element inspection, code execution playground, planar clipping, Section Box, and error reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
