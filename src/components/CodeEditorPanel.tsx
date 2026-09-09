@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
-import { DEFAULT_IFC_CODE } from '../core/defaultExample';
+import { DEFAULT_IFC_CODE, COLUMN_GRID_CODE } from '../core/defaultExample';
 import { Play, RotateCcw, FileCode, Check, AlertTriangle, X, Sparkles } from 'lucide-react';
 
 interface CodeEditorPanelProps {
@@ -108,6 +108,26 @@ export const CodeEditorPanel: React.FC<CodeEditorPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5">
+          <select
+            id="select-ifc-template"
+            className="bg-[#1e1e2e] border border-[#3f3f5a] text-slate-200 text-[11px] rounded px-1.5 py-0.5 outline-none hover:border-blue-400 cursor-pointer"
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === 'mep') {
+                onChangeCode(DEFAULT_IFC_CODE);
+                localStorage.setItem('code', DEFAULT_IFC_CODE);
+              } else if (val === 'grid') {
+                onChangeCode(COLUMN_GRID_CODE);
+                localStorage.setItem('code', COLUMN_GRID_CODE);
+              }
+            }}
+            defaultValue="mep"
+            title="Chọn mẫu dựng hình IFC"
+          >
+            <option value="mep">🏭 Nhà xưởng BIM MEP V2.0 (LOD 400)</option>
+            <option value="grid">🏛️ Lưới cột 6x6 (Cơ bản)</option>
+          </select>
+
           <button
             id="btn-editor-run"
             onClick={onRunCode}
@@ -122,7 +142,7 @@ export const CodeEditorPanel: React.FC<CodeEditorPanelProps> = ({
             id="btn-editor-reset"
             onClick={onResetCode}
             className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[#3f3f5a] text-slate-300 hover:text-white transition text-[11px]"
-            title="Khôi phục code mẫu chuẩn (6x6 Columns)"
+            title="Khôi phục code mẫu chuẩn nhà xưởng MEP thực tế"
           >
             <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
             <span>Reset</span>

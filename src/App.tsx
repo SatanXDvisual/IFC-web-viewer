@@ -26,7 +26,7 @@ export default function App() {
   // Application States
   const [code, setCode] = useState<string>(() => {
     const saved = localStorage.getItem('code');
-    if (!saved || !saved.includes('IFCPROJECT')) {
+    if (!saved || !saved.includes('IFCPROJECT') || !saved.includes('PARAMETRIC BIM GENERATOR V2.0')) {
       return DEFAULT_IFC_CODE;
     }
     return saved;
@@ -271,7 +271,7 @@ export default function App() {
     setCode(DEFAULT_IFC_CODE);
     localStorage.setItem('code', DEFAULT_IFC_CODE);
     setEditorError(null);
-    addToast('info', 'Đã khôi phục code mẫu chuẩn (6x6 columns IFC4)');
+    addToast('info', 'Đã khôi phục code mẫu nhà xưởng MEP thực tế (LOD 400)');
   };
 
   // Clear Model & Memory
