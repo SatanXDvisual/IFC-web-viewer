@@ -41,7 +41,27 @@ export class CodeRunner {
     // 2. Initialize Engine & Create new IFC4 model
     await ifcEngine.init();
     const api = ifcEngine.getApi();
-    const modelID = ifcEngine.createModel(WebIFC.Schemas.IFC4);
+    let activeModelID = ifcEngine.createModel(WebIFC.Schemas.IFC4);
+    const createdModelIDs: number[] = [activeModelID];
+
+    // Hook CreateModel and SaveModel to seamlessly capture user-created models & serialized bytes
+    let userSavedBytes: Uint8Array | null = null;
+    const originalCreateModel = api.CreateModel.bind(api);
+    api.CreateModel = (...args: any[]) => {
+      const id = originalCreateModel(...args);
+      activeModelID = id;
+      createdModelIDs.push(id);
+      target.modelID = id;
+      target.model = id;
+      return id;
+    };
+
+    const originalSaveModel = api.SaveModel.bind(api);
+    api.SaveModel = (mid: number) => {
+      const bytes = originalSaveModel(mid);
+      userSavedBytes = bytes;
+      return bytes;
+    };
 
     // 3. Prepare execution scope
     // We attach API symbols to window / globalThis so user scripts can access them directly
@@ -52,8 +72,8 @@ export class CodeRunner {
     target.webifc = WebIFC;
     target.ifcAPI = api;
     target.api = api;
-    target.modelID = modelID;
-    target.model = modelID;
+    target.modelID = activeModelID;
+    target.model = activeModelID;
     target.THREE = THREE;
     target.three = THREE;
     target.require = (moduleName: string) => {
@@ -78,16 +98,28 @@ export class CodeRunner {
     };
 
     // 4. Run user code in sandboxed async function (enabling top-level await)
+    let executionResult: any;
     try {
+      // If user code is an IIFE like (() => { ... })() without return, allow capturing its return value
+      let codeToExecute = jsCode.trim();
+      if (
+        (codeToExecute.startsWith('(() =>') || codeToExecute.startsWith('(function')) &&
+        (codeToExecute.endsWith(')();') || codeToExecute.endsWith(')()'))
+      ) {
+        codeToExecute = `return ${codeToExecute}`;
+      }
+
       // Construct AsyncFunction to allow top-level await seamlessly
       const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-      const runnerFn = new AsyncFunction('console', `"use strict";\n${jsCode}`);
-      await runnerFn(customConsole);
+      const runnerFn = new AsyncFunction('console', `"use strict";\n${codeToExecute}`);
+      executionResult = await runnerFn(customConsole);
     } catch (evalErr: any) {
       const msg = `Lỗi thực thi code: ${evalErr.message}`;
       logger.addLog('ERROR', msg, undefined, evalErr.stack);
-      // Clean up temporary model
-      ifcEngine.closeCurrentModel();
+      // Clean up temporary models
+      for (const id of createdModelIDs) {
+        try { api.CloseModel(id); } catch {}
+      }
       return {
         success: false,
         error: evalErr,
@@ -96,12 +128,28 @@ export class CodeRunner {
       };
     }
 
-    // 5. Save Model to Uint8Array
+    // 5. Save or resolve raw IFC STEP Uint8Array
     let rawIfcData: Uint8Array;
     try {
-      rawIfcData = api.SaveModel(modelID);
+      if (executionResult instanceof Uint8Array && executionResult.byteLength > 0) {
+        rawIfcData = executionResult;
+      } else if (userSavedBytes && userSavedBytes.byteLength > 0) {
+        rawIfcData = userSavedBytes;
+      } else if (
+        target.__FACTORY_MEP_IFC_BYTES__ instanceof Uint8Array &&
+        target.__FACTORY_MEP_IFC_BYTES__.byteLength > 0
+      ) {
+        rawIfcData = target.__FACTORY_MEP_IFC_BYTES__;
+      } else {
+        rawIfcData = originalSaveModel(activeModelID);
+      }
+
       logger.addLog('INFO', `Đã xuất dữ liệu IFC STEP: ${(rawIfcData.byteLength / 1024).toFixed(1)} KB`);
-      ifcEngine.closeCurrentModel();
+
+      // Close open generator models to avoid memory leaks before opening viewer model
+      for (const id of createdModelIDs) {
+        try { api.CloseModel(id); } catch {}
+      }
     } catch (saveErr: any) {
       const msg = `Lỗi serialize mô hình IFC: ${saveErr.message}`;
       logger.addLog('ERROR', msg, undefined, saveErr.stack);
